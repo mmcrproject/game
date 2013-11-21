@@ -13,6 +13,7 @@ public class Alpha {
 	private final int shieldMaxReset;
 
 	private int width = 15, height = 12; //hitbox size
+	//TODO draw hitbox using (width/2)+5, posY-height+3
 	private int posX, posY; //ship position
 	
 	private int leftMax;
@@ -77,7 +78,6 @@ public class Alpha {
 		}
 		
 	g.drawString(ship, posX-(width/2), posY); //Adjust X to account for ship's width
-	g.drawRect(posX-(width/2)+5, posY-height+3, width, height); //test hitbox
 
 	} // end of draw()
 

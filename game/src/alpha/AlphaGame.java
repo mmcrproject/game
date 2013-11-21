@@ -18,10 +18,14 @@ public class AlphaGame extends JFrame implements WindowListener {
 
 	private AlphaPanel ap;
 
-	public AlphaGame(/*AlphaGameag,*/ long period) {
+	public AlphaGame(/*AlphaGameag,*/ final long period) {
 	
 		super("Alpha v.02");
-		makeGUI(period);
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run(){
+				makeGUI(period);
+			}
+		});
 		setLocation(200,100);
 		addWindowListener(this);
 	

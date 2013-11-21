@@ -6,7 +6,7 @@ import java.awt.Graphics;
 public class Bullet {
 
 	private int posx, posy;
-	private String bullet = "^";
+	private String bullet = "^"; //TODO size is 5x5 adjust shooting
 	private int speed;
 	private int distanceMoved = 0;
 
@@ -51,4 +51,4 @@ public class Bullet {
 		return array;
 	}
 
-} // end of Bubble class
+} // end of Bullet class

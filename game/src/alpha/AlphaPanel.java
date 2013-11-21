@@ -9,7 +9,6 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.ArrayList;
-import java.util.Random;
 
 import javax.swing.JPanel;
 
@@ -23,7 +22,7 @@ import alpha.Alpha;
 @SuppressWarnings("serial")
 public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 
-	private static final int PWIDTH = 400; // size of default panel
+	private static final int PWIDTH = 300; // size of default panel
 	private static final int PHEIGHT = 400;
 	private static final int leftMax = 50; // usable are inside panel, left-right
 	private static final int rightMax = PWIDTH - 50;
@@ -32,6 +31,10 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	
 	private ArrayList<Bullet> bullets;
 	private ArrayList<Enemy> mooks;
+	private ArrayList<MiniBoss> miniBoss;
+	private ArrayList<Boss> boss;
+	private ArrayList<BadBullets> badBullets;
+	private int level = 0;
 	
 	private static final int NO_DELAYS_PER_YIELD = 16;
 	/*
@@ -85,7 +88,10 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	private Boolean shooting = false;
 	private final int bulletSpeed = 5;
 	private boolean destroyed = false;
-
+	
+	private boolean storeLevel = false;
+	private long timeReference;
+	
 	public AlphaPanel(long period) {
 		this.period = period;
 		startTime = System.nanoTime();
@@ -96,8 +102,12 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		readyForTermination();
 		
 		alpha = new Alpha(startX, startY, leftMax, rightMax, 3/*shield start*/, 3/*shield max*/);
-		bullets = new ArrayList<Bullet>();
 		mooks = new ArrayList<Enemy>();
+		miniBoss = new ArrayList<MiniBoss>();
+		boss = new ArrayList<Boss>();
+		bullets = new ArrayList<Bullet>();
+		badBullets = new ArrayList<BadBullets>();
+		timeReference = System.nanoTime();
 		
 		addKeyListener(this);
 
@@ -214,9 +224,14 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		System.exit(0); // so window disappears
 	} // end of run()
 
-	private void restartGame() {
+	private void restartGame() { //TODO fix restart, clear enemies
+		level = 0;
 		alpha.resetShieldMax(3);
 		bullets.removeAll(bullets);
+		badBullets.removeAll(badBullets);
+		mooks.removeAll(mooks);
+		miniBoss.removeAll(miniBoss);
+		boss.removeAll(boss);
 		delta = 1;
 		moving = false;
 		score = 0;
@@ -229,11 +244,24 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 
 	private void gameUpdate() {
 		if (!isPaused && !gameOver) {
-				this.updateBullets();
-		return; //TODO update more stuff
+			this.updateBullets();
+			this.updateBadBullets();
+			this.updateBaddies();
+		return;
 		}
 
 	} // end of gameUpdate()
+
+	private void updateBadBullets() {
+		long startTime = System.nanoTime();
+		/*11745872714315
+		11746879026613
+		11747887248970*/
+		for(int i = 0; i < mooks.size(); i++){
+			
+		}
+		
+	}
 
 	private void gameRender() {
 		if (dbImage == null) {
@@ -249,7 +277,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		dbg.setColor(new Color(250, 253, 255));
 		dbg.fillRect(0, 0, PWIDTH, PHEIGHT);
 
-		dbg.setFont(new Font("Sans Serif", 3, 14));
+		dbg.setFont(new Font("Sans Serif", 1, 12));
 
 		drawBackground(dbg);
 		
@@ -257,10 +285,14 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		drawShieldBar(dbg);
 		drawShip(dbg);
 		drawBullets(dbg);
+		
+		updateLevel(dbg);
+		
 		dbg.setFont(new Font("Sans Serif", 1, 12));
 		dbg.setColor(Color.black);
-		dbg.drawString("Score: " + score, 10, 12); //TODO display score
-		dbg.drawString("Cores: " + cores, PWIDTH-80, 12); //TODO display money
+		dbg.drawString("Score: " + score, 10, 12);
+		dbg.drawString("Level: " + level, PWIDTH/2-20, 12);
+		dbg.drawString("Cores: " + cores, PWIDTH-80, 12);
 		dbg.drawString("(P)ause or (Esc)ape", PWIDTH-90, PHEIGHT-7);
 
 		if (isPaused) {
@@ -279,7 +311,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	
 	private void drawBullets(Graphics g) {
 		if(shooting){
-			g.drawString("PEW", PWIDTH/2, PHEIGHT/2);
+			//may be used for effects
 		}
 	}
 
@@ -313,9 +345,27 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	}
 
 	private void drawEntities(Graphics g) {
+/*		for(int i = 0; i <  badBullets.size(); i++) {
+			badBullets.get(i).draw(g);
+		}*/
 		for (int i = 0; i < bullets.size(); i++) {
 			bullets.get(i).draw(g);
 		} // draw bullets
+		for (int i=0; i < mooks.size(); i++){
+			if(!mooks.get(i).isDestroyed()){
+				mooks.get(i).draw(g);
+			}
+		}
+		if(!miniBoss.isEmpty()){
+			if(!miniBoss.get(0).isDestroyed()){
+				miniBoss.get(0).draw(g);
+			}
+		}
+		if(!boss.isEmpty()){
+			if(!boss.get(0).isDestroyed()){
+				boss.get(0).draw(g);
+			}
+		}
 	}
 
 	private void pausedMessage(Graphics g) {
@@ -332,7 +382,9 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		g.drawString("Move with S<>D and shoot with K.",
 				PWIDTH / 2 - 150+12, PHEIGHT / 2);
 		g.drawString("Press \'o\' to play and \'p\' to pause.",
-				PWIDTH / 2 - 150+15, PHEIGHT / 2 + 50);
+				PWIDTH / 2 - 150+17, PHEIGHT / 2 + 50);
+		g.drawString("Hit Enter to restart game.",
+				PWIDTH / 2 - 150+22, PHEIGHT / 2 + 80);
 	}
 
 	private void gameOverMessage(Graphics g)
@@ -354,12 +406,30 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		g.drawString(msg3, PWIDTH / 2 - 70, PHEIGHT / 2);
 		g.drawString(msg4, PWIDTH / 2 - 70+8, PHEIGHT / 2+30);
 		g.drawString(msg5, PWIDTH / 2 - 70, PHEIGHT / 2+60);
-		if(score == 0){
+		if(score < 600){
 			g.setColor(Color.red);
-			 msg5 = "Flunkie"; //TODO if score in range rank = flavor text
-		} else if(score > 0 && score < 100) {
+			 msg5 = "Flunkie";
+		} else if(score >= 600 && score < 1600) {
 			g.setColor(Color.blue);
-			msg5 = "Ensign"; //TODO if score in range rank = flavor text
+			msg5 = "Space Cadet";
+		} else if(score >= 1600 && score < 5000) {
+			g.setColor(Color.blue);
+			msg5 = "Ensign";
+		} else if(score >= 6000 && score < 7000) {
+			g.setColor(Color.green);
+			msg5 = "Lieutenant";
+		} else if(score >= 7000 && score < 8000) {
+			g.setColor(Color.green);
+			msg5 = "Commander";
+		} else if(score >= 9000 && score < 10000) {
+			g.setColor(Color.black);
+			msg5 = "Captain";
+		} else if(score >= 10000 && score < 11000) {
+			g.setColor(Color.black);
+			msg5 = "Admiral";
+		} else if(score >= 10000 && score < 11000) {
+			g.setColor(Color.yellow);
+			msg5 = "Default";
 		}
 		g.drawString(msg5, PWIDTH / 2 - 70+50, PHEIGHT / 2+60);
 		
@@ -374,7 +444,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	public void keyPressed(KeyEvent e) {
 
 		if (e.getKeyCode() == KeyEvent.VK_D
-				|| e.getKeyCode() == KeyEvent.VK_RIGHT) {
+				|| e.getKeyCode() == KeyEvent.VK_RIGHT) { //Moving right
 			keyD = true;
 			if(!moving){
 				deltaVector = delta;
@@ -382,33 +452,45 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 			moving = true;
 		}
 		if (e.getKeyCode() == KeyEvent.VK_S
-				|| e.getKeyCode() == KeyEvent.VK_LEFT) {
+				|| e.getKeyCode() == KeyEvent.VK_LEFT) { //Moving left
 			keyS = true;
 			if(!moving){
 				deltaVector = 0-delta;
 			}
 			moving = true;
 		}
-		if (e.getKeyCode() == KeyEvent.VK_K || e.getKeyCode() == KeyEvent.VK_UP) {
+		if (e.getKeyCode() == KeyEvent.VK_K || e.getKeyCode() == KeyEvent.VK_UP) { //Firing
 			keyK = true;
 		}
-		if (e.getKeyCode() == KeyEvent.VK_P) {
+		if (e.getKeyCode() == KeyEvent.VK_P) { //Pause game
 			pauseGame();
 		}
-		if (e.getKeyCode() == KeyEvent.VK_O) {
+		if (e.getKeyCode() == KeyEvent.VK_O) { //Game [O]ver
 			if (isPaused) {
 				resumeGame();
 				pauseOnce = false;
 			}
 		}
-		if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-			if (gameOver) {
-				restartGame();
-			}
+		if (e.getKeyCode() == KeyEvent.VK_B) { //deBug key
+			mooks.add(new Enemy(100, 200, 1, 1)); //add mooks
 		}
 		
-		if (e.getKeyCode() == KeyEvent.VK_B) {
-			mooks.add(new Enemy(100, 200, 1, 2));
+		if (e.getKeyCode() == KeyEvent.VK_X) { //eXit store
+			System.out.println("level "+level);
+			if(level%3 == 0){
+				storeLevel = false;
+			}
+		}
+		if (e.getKeyCode() == KeyEvent.VK_SPACE) { //End game, debug key remove
+			gameOver = true;
+		}
+		if (e.getKeyCode() == KeyEvent.VK_ENTER) { //End game, debug key remove
+			if(isPaused){
+				System.out.println("Enter");
+				restartGame();
+				pauseOnce = false;
+				isPaused = false;
+			}
 		}
 
 	}
@@ -445,10 +527,8 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	}
 
 	private void updateAlpha() {
-		boolean hit = false;
 
-		/* Some logic is necessary in case multiple keys are pressed together,
-		 * logic is keep moving until all keys released. 
+		/* Keep moving in the original direction until all keys released. 
 		 * */
 		if (keyD && !keyS) {
 			deltaVector = delta;
@@ -462,16 +542,13 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 			if (!bullets.isEmpty()) {
 				if (bullets.get(bullets.size() - 1).canShoot(
 						bullets.get(bullets.size() - 1), 100) > 0) {
-					System.out.println("case 1");
 					bullets.add(new Bullet(alpha.getX(), alpha.getY(),
 						bulletSpeed));
 				} else if (bullets.get(bullets.size() - 1).canShoot(
 					bullets.get(bullets.size() - 1), 100) > 0) {
-						System.out.println("case 2");
 						bullets.add(new Bullet(alpha.getX(), alpha.getY(), bulletSpeed));
 				} 
 			} else {
-				System.out.println("bullet");
 				bullets.add(new Bullet(alpha.getX(), alpha.getY(), bulletSpeed));
 			}
 		} else { //not key k
@@ -505,7 +582,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 			mooks.get(i).move();
 		
 			//Check if bullet hit mook
-			for (int j = 0; j < mooks.size(); j++) {
+			for (int j = 0; j < bullets.size(); j++) {
 
 				hit = mooks.get(i).gotHit(bullets.get(j));
 				if (hit) {
@@ -513,17 +590,108 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 					bullets.remove(j);
 				}
 			}
-		}// end for
 		
-		for (int i = 0; i < mooks.size(); i++) {
 			if (mooks.get(i).getHealth() <= 0) {
+				score = score+((mooks.get(i).getType())*100);
 				mooks.remove(i);
-				score++;
 			}
-		}// end for
+		} //end mook update
+		
+		//Move moiniBoss
+				for (int i = 0; i < miniBoss.size(); i++) {
+					miniBoss.get(i).move();
+				
+					//Check if bullet hit miniBoss
+					for (int j = 0; j < bullets.size(); j++) {
 
+						hit = miniBoss.get(i).gotHit(bullets.get(j));
+						if (hit) {
+							miniBoss.get(i).damage();
+							bullets.remove(j);
+						}
+					}
+				
+					if (miniBoss.get(i).getHealth() <= 0) {
+						miniBoss.remove(i);
+						score = score+500;
+					}
+				} //end miniBoss update
+
+				//Move boss
+				for (int i = 0; i < boss.size(); i++) {
+					boss.get(i).move();
+				
+					//Check if bullet hit boss
+					for (int j = 0; j < bullets.size(); j++) {
+
+						hit = boss.get(i).gotHit(bullets.get(j));
+						if (hit) {
+							boss.get(i).damage();
+							bullets.remove(j);
+						}
+					}
+				
+					if (boss.get(i).getHealth() <= 0) {
+						boss.remove(i);
+						score = score+1000;
+					}
+				} //end boss update
 	}// end baddies
-
+	
+	private void updateLevel(Graphics g) { //TODO work on level logic
+		if(mooks.isEmpty() && miniBoss.isEmpty() && boss.isEmpty()){
+			if(!storeLevel){
+				level++;
+			}
+			if (level == 1){
+				int x = 2;
+				for(int i=0; i<x; i++){
+					miniBoss.add(new MiniBoss(50, 40, 1, 2));
+					boss.add(new Boss(100, 40, 1, 2));
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 200, 1, 1));
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 250, 2, 1));
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 300, 3, 1));
+				}
+			} else if(level % 3 == 0) {
+				storeLevel = true;
+				if((level/3)%3 ==0){
+					g.drawString("Welcome to the store.", leftMax, 50);
+				} else if((level/3)%3 ==1){
+					g.drawString("Zbart's Hyperspace Supply.", leftMax, 50);				
+				} else if((level/3)%3 ==2){
+					g.drawString("You again?", leftMax, 50);
+				}
+				g.drawString("1) Restore shield (100 Cr)", leftMax, 70);
+				g.drawString("2) Add max shield (500 Cr)", leftMax, 90);
+				g.drawString("3) Auto fire (500 Cr)", leftMax, 110);
+				g.drawString("4) Double shot (600 Cr)", leftMax, 130);
+				g.drawString("5) Triple shot (1500 Cr)", leftMax, 150);
+				g.drawString("6) Plasma cutter (10,000 Cr)", leftMax, 170);
+				g.drawString("7) Nova bomb (30,000 Cr)", leftMax, 190);
+				g.drawString("8) Disruptors (50,000 Cr)", leftMax, 210);
+				g.drawString("9) Remote (99,999 Cr)", leftMax, 230);
+				g.drawString("Press (x) to continue", leftMax, 270);
+			} else if (level % 2 == 0){
+				int x = 5;
+					for(int i=0; i<x; i++){
+						mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 100, 1, 1));
+					}
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/2)+leftMax-20), 70, 3, 2));
+			}else {
+				int x = 3;
+				for(int i=0; i<x; i++){
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 100, 1, 1));
+				}
+			}
+			if(level%5 == 0){
+				miniBoss.add(new MiniBoss(PWIDTH/2, 50, 1, 2));
+			}
+			if(level%11 == 0){
+				boss.add(new Boss(PWIDTH/2, 50, 1, 2));
+			}
+		}
+	}
+	
 	private void checkStartnew() {
 
 		if (pauseOnce) {
@@ -539,7 +707,8 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 			startTime = secondTime;
 		}
 		if(seconds%1==0 && startTime == secondTime){
-			System.out.println(seconds + " seconds.");
+//			System.out.println(seconds + " seconds.");
+			System.out.println(secondTime);
 		}
 	}
 

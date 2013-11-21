@@ -5,15 +5,12 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.util.Random;
 
-public class Enemy {
+public class MiniBoss {
 
-	private String mook0 = "defau";
-	private String mook1 = "{.m.}"; //TODO size is 25x12 adjust bullet
-	private String mook2 = "}.w.{";
-	private String mook3 = "\\..^../";
-	private String mookDamage = "X.x.X";
-	private String mook;
-	private int mookType;
+	private String miniBoss0 = " _,_";
+	private String miniBoss1 = "{d b}";
+	private String miniBoss2 = "\\/^\\/";
+	private String damage = "X.x.X";
 	
 	private boolean destroyed = false;
 	private boolean doChange = false;
@@ -63,24 +60,12 @@ public class Enemy {
 	
 	}
 
-	public Enemy(int initPosx, int initPosy, int mookTypeIn, int speed) {
+	public MiniBoss(int initPosx, int initPosy, int speed, int life) {
 		posx = initPosx;
 		posy = initPosy;
 		delta = speed;
 		direction = 1;
-		health = mookTypeIn;
-		mookType = mookTypeIn;
-		
-		switch (mookType) {
-			case 1: mook = mook1;
-				break;
-			case 2: mook = mook2;
-				break;
-			case 3: mook = mook3;
-				break;
-			default: mook = mook0;
-				break;
-		}
+		health = life;
 	} // end of badGuy()
 
 	public void move() {
@@ -109,13 +94,15 @@ public class Enemy {
 	public void draw(Graphics g) {
 		g.setColor(Color.black);
 		g.setFont(new Font("Sans Serif", 1, 12));
-		g.drawString(mook, posx, posy);
+		g.drawString(miniBoss0, posx+1, posy-10);
+		g.drawString(miniBoss1, posx, posy);
+		g.drawString(miniBoss2, posx+2, posy+10);
 	} // end of draw()
 
 	public void damage() {
 		health--;
 //		System.out.println(health);
-		mook = mookDamage;
+		miniBoss2 = damage;
 	}
 
 	public int getHealth() {
@@ -131,9 +118,5 @@ public class Enemy {
 		array[0] = movedX;
 		array[1] = movedY;
 		return array;
-	}
-
-	public int getType() {
-		return mookType;
 	}
 }
