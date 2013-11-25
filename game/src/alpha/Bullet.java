@@ -5,7 +5,7 @@ import java.awt.Graphics;
 
 public class Bullet {
 
-	private int posx, posy;
+	private int posx, posy, adjust;
 	private String bullet = "^"; //TODO size is 5x5 adjust shooting
 	private int speed;
 	private int distanceMoved = 0;
@@ -24,7 +24,7 @@ public class Bullet {
 	synchronized public void draw(Graphics g) {
 		g.setColor(new Color(100, 75, 200));
 		if (posx <= 700) {
-			g.drawString(bullet, posx, posy+speed);
+			g.drawString(bullet, posx, posy);
 		}
 
 	} // end of draw()
@@ -35,13 +35,14 @@ public class Bullet {
 	}
 	
 	
-	public int canShoot(Bullet b, int dist) {
+	public boolean canShoot(Bullet b, int dist, boolean autoFire, boolean shootReset) {
 		if (b.distanceMoved > dist) {
-			distanceMoved=0;
-			return 1;
-		} else {
-			return 0;
+			if(autoFire || shootReset){
+				distanceMoved=0;
+				return true;
+			}
 		}
+		return false;
 	}
 
 	public int[] getLoc() {

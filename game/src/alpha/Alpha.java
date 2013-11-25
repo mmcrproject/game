@@ -18,7 +18,6 @@ public class Alpha {
 	
 	private int leftMax;
 	private int rightMax;
-	
 	private Boolean isDestroyed;
 	
 	public Alpha(int initialX, int initialY, int maxLeft, int maxRight, int shieldSet, int shieldMaxSet) {
@@ -70,11 +69,14 @@ public class Alpha {
 				posX = leftMax;
 			}
 		}
-		
-		if (upgraded) {
-			ship = "\\^/";
+		if (!isDestroyed){
+			if (upgraded) {
+				ship = "\\^/";
+			} else {
+				ship = "/^\\";
+			}
 		} else {
-			ship = "/^\\";
+			ship = "xXx";
 		}
 		
 	g.drawString(ship, posX-(width/2), posY); //Adjust X to account for ship's width
@@ -101,12 +103,10 @@ public class Alpha {
 	}
 
 	public void damage() {
-		if(shield > 0) {
-			shield--;
-		}
 		if(shield == 0) {
-			ship = "xXx";
 			isDestroyed = true;
+		} else if(shield > 0) {
+			shield--;
 		}
 	}
 
@@ -118,13 +118,17 @@ public class Alpha {
 		return shieldMax;
 	}
 	
-	public void upgrade() {
-		ship = "\\^/";
+	public void upgradeSet() {
+		upgraded = true;
+	}
+	
+	public void upgradeRemove() {
+		upgraded = false;
 	}
 
 	public void reset() {
-		ship = "/^\\";
+		isDestroyed = false;
 		shield = shieldReset;
 		shieldMax = shieldMaxReset;
 	}
-} // end of Kirby class
+} // end of Alpha class

@@ -34,25 +34,16 @@ public class BadBullets {
 	synchronized public void draw(Graphics g) {
 		g.setColor(new Color(200, 0, 200));
 		if (posx <= 700) {
-			if (direction == 0) {
-				g.drawString(bullet, posx, posy+delta);
-			} else if(direction > 0) {
-				g.drawString(bullet, posx+delta, posy+delta);
-			} else if(direction > 0) {
-				g.drawString(bullet, posx-delta, posy+delta);
-			}
+			g.drawString(bullet, posx, posy);
 		}
 
 	} // end of draw()
 
 	public void move() {
-		if (direction > 0) {
+		if (direction > 0 || direction < 0) {
 			posx += delta;
-		} else {
-			posx -= delta;
 		}
 		posy += delta;
-
 	}
 
 	public int[] getLoc() {

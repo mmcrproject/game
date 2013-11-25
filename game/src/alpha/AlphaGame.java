@@ -20,7 +20,7 @@ public class AlphaGame extends JFrame implements WindowListener {
 
 	public AlphaGame(/*AlphaGameag,*/ final long period) {
 	
-		super("Alpha v.02");
+		super("Alpha v.1");
 		SwingUtilities.invokeLater(new Runnable() {
 			public void run(){
 				makeGUI(period);

@@ -9,14 +9,11 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.ArrayList;
-
 import javax.swing.JPanel;
 
 
 
-//import kirby.BadBubbles;
-//import kirby.BadGuy;
-//import kirby.Bubble;
+
 import alpha.Alpha;
 
 @SuppressWarnings("serial")
@@ -29,6 +26,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	private static final int startX = PWIDTH / 2; 
 	private static final int startY = PHEIGHT - 30;
 	
+	private ArrayList<Core> cores;
 	private ArrayList<Bullet> bullets;
 	private ArrayList<Enemy> mooks;
 	private ArrayList<MiniBoss> miniBoss;
@@ -53,6 +51,8 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	private Thread animator; // the thread that performs the animation
 	private boolean running = false; // used to stop the animation thread
 	private boolean isPaused = true;
+	private boolean shootReset = true;
+	private boolean autoFire = false;
 
 	private long period; // period between drawing in _nanosecs_
 
@@ -77,7 +77,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	private Alpha alpha; //character model
 	
 	private int score; //total points
-	private int cores; //money for upgrades
+	private int coreTotal; //money for upgrades
 	
 	//Allows rules for when keys pressed together
 	/*private Boolean movingLeft = false;
@@ -90,7 +90,12 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	private boolean destroyed = false;
 	
 	private boolean storeLevel = false;
-	private long timeReference;
+	private boolean doubleShot = false;
+	private boolean tripleShot = false;
+	private boolean isSecond = false;
+	
+	private double enemyFireDensity = 0;
+	private int totalEnemies = 0;
 	
 	public AlphaPanel(long period) {
 		this.period = period;
@@ -107,7 +112,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		boss = new ArrayList<Boss>();
 		bullets = new ArrayList<Bullet>();
 		badBullets = new ArrayList<BadBullets>();
-		timeReference = System.nanoTime();
+		cores = new ArrayList<Core>();
 		
 		addKeyListener(this);
 
@@ -227,6 +232,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	private void restartGame() { //TODO fix restart, clear enemies
 		level = 0;
 		alpha.resetShieldMax(3);
+		alpha.upgradeRemove();
 		bullets.removeAll(bullets);
 		badBullets.removeAll(badBullets);
 		mooks.removeAll(mooks);
@@ -235,10 +241,13 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		delta = 1;
 		moving = false;
 		score = 0;
-		cores = 0;
+		coreTotal = 0;
 		destroyed = false;
 		gameOver = false;
 		pauseOnce = true;
+		doubleShot = false;
+		tripleShot = false;
+		shootReset = true;
 		checkStartnew();
 	}
 
@@ -247,18 +256,35 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 			this.updateBullets();
 			this.updateBadBullets();
 			this.updateBaddies();
+			this.updateCores();
 		return;
 		}
 
 	} // end of gameUpdate()
 
+	private void updateCores() {
+		for(int i=0; i<cores.size(); i++) {
+			cores.get(i).move();
+		}
+		
+	}
+
 	private void updateBadBullets() {
-		long startTime = System.nanoTime();
-		/*11745872714315
-		11746879026613
-		11747887248970*/
-		for(int i = 0; i < mooks.size(); i++){
-			
+		if(isSecond){
+			for(int i = 0; i < mooks.size(); i++){
+				double randomBullet = Math.random();
+				randomBullet = randomBullet % mooks.size();
+				randomBullet = randomBullet / mooks.size();
+				if(randomBullet <= enemyFireDensity) {
+					badBullets.add(new BadBullets(mooks.get(i).getX(), mooks.get(i).getY(), 0, 1, 1));	
+				}
+			}
+		}
+		for(int i=0; i< badBullets.size(); i++){
+			badBullets.get(i).move();
+			if(badBullets.get(i).getLoc()[1] > PHEIGHT-20) {
+				badBullets.remove(i);
+			}
 		}
 		
 	}
@@ -267,7 +293,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		if (dbImage == null) {
 			dbImage = createImage(PWIDTH, PHEIGHT);
 			if (dbImage == null) {
-				System.out.println("dbImage is null");
+				//TODO handle
 				return;
 			} else
 				dbg = dbImage.getGraphics();
@@ -292,7 +318,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		dbg.setColor(Color.black);
 		dbg.drawString("Score: " + score, 10, 12);
 		dbg.drawString("Level: " + level, PWIDTH/2-20, 12);
-		dbg.drawString("Cores: " + cores, PWIDTH-80, 12);
+		dbg.drawString("Cores: " + coreTotal, PWIDTH-80, 12);
 		dbg.drawString("(P)ause or (Esc)ape", PWIDTH-90, PHEIGHT-7);
 
 		if (isPaused) {
@@ -325,12 +351,14 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 				g.drawImage(dbImage, 0, 0, null);
 			g.dispose();
 		} catch (Exception e) {
-			System.out.println("Graphics context error: " + e);
+			//TODO handle
 		}
 	} // end of paintScreen()
 
 	private void drawShieldBar(Graphics g) {
-		int barFill = (int) (alpha.shieldPercent()*100);
+		float sh = alpha.getShield();
+		float ma = alpha.getShieldMax();
+		int barFill = (int)((sh/ma)*100);
 		g.setColor(Color.blue);
 		g.fillRect(85, PHEIGHT-12, barFill, 10);
 		g.setColor(Color.black);
@@ -348,9 +376,15 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 /*		for(int i = 0; i <  badBullets.size(); i++) {
 			badBullets.get(i).draw(g);
 		}*/
+		for (int i = 0; i < cores.size(); i++) {
+			cores.get(i).draw(g);
+		} // draw bullets
 		for (int i = 0; i < bullets.size(); i++) {
 			bullets.get(i).draw(g);
 		} // draw bullets
+		for (int i = 0; i < badBullets.size(); i++) {
+			badBullets.get(i).draw(g);
+		} // draw Bad bullets
 		for (int i=0; i < mooks.size(); i++){
 			if(!mooks.get(i).isDestroyed()){
 				mooks.get(i).draw(g);
@@ -377,8 +411,12 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 				PWIDTH / 2 - 75, PHEIGHT / 2 - 120);
 		g.drawString("The year is 30K. You are the rebellion.",
 				PWIDTH / 2 - 150+5, PHEIGHT / 2 - 60);
-		g.drawString("Pick up cores to purchase upgrades.",
+		g.drawString("Pick up cores ( ) to purchase upgrades.",
 				PWIDTH / 2 - 150+10, PHEIGHT / 2 - 30);
+		g.setColor(Color.green);
+		g.drawString("¤",
+				PWIDTH / 2-38, PHEIGHT / 2 - 30);
+		g.setColor(Color.black);
 		g.drawString("Move with S<>D and shoot with K.",
 				PWIDTH / 2 - 150+12, PHEIGHT / 2);
 		g.drawString("Press \'o\' to play and \'p\' to pause.",
@@ -393,7 +431,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		String msg1 = "Game Over.";
 		String msg2 = "Score: " + score;
 		String msg3 = "Cores: " + cores;
-		int total = Integer.valueOf(score)+Integer.valueOf(cores);
+		int total = Integer.valueOf(score)+Integer.valueOf(coreTotal);
 		String msg4 = "Total: " + total;
 		String msg5 = "Rank: ";
 		
@@ -459,7 +497,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 			}
 			moving = true;
 		}
-		if (e.getKeyCode() == KeyEvent.VK_K || e.getKeyCode() == KeyEvent.VK_UP) { //Firing
+		if (e.getKeyCode() == KeyEvent.VK_K || e.getKeyCode() == KeyEvent.VK_UP) { //Request to fire
 			keyK = true;
 		}
 		if (e.getKeyCode() == KeyEvent.VK_P) { //Pause game
@@ -471,12 +509,11 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 				pauseOnce = false;
 			}
 		}
-		if (e.getKeyCode() == KeyEvent.VK_B) { //deBug key
-			mooks.add(new Enemy(100, 200, 1, 1)); //add mooks
+		if (e.getKeyCode() == KeyEvent.VK_B) { //TODO deBug key
+			coreTotal += 2000; //MONEY CHEAT
 		}
 		
 		if (e.getKeyCode() == KeyEvent.VK_X) { //eXit store
-			System.out.println("level "+level);
 			if(level%3 == 0){
 				storeLevel = false;
 			}
@@ -486,13 +523,64 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		}
 		if (e.getKeyCode() == KeyEvent.VK_ENTER) { //End game, debug key remove
 			if(isPaused){
-				System.out.println("Enter");
 				restartGame();
 				pauseOnce = false;
 				isPaused = false;
 			}
 		}
-
+		if (e.getKeyCode() == KeyEvent.VK_1) { //Store options, charge shield
+			if(storeLevel){
+				if(coreTotal > 100){
+					if(alpha.getShield() < alpha.getShieldMax()) {
+						coreTotal -= 100;
+						alpha.addShield();
+					}
+				}
+			}
+		}
+		if (e.getKeyCode() == KeyEvent.VK_2) { //Store options, add max shield
+			if(storeLevel){
+				if(coreTotal > 300){
+					coreTotal -= 300;
+					alpha.addShieldMax();
+					alpha.addShield();
+				}
+			}
+		}
+		if (e.getKeyCode() == KeyEvent.VK_3) { //Store options, autofire
+			if(storeLevel){
+				if(coreTotal > 500){
+					if(autoFire == false) {
+						System.out.println("autofire "+autoFire);
+						coreTotal -= 500;
+						autoFire = true;
+					}
+				}
+			}
+		}
+		if (e.getKeyCode() == KeyEvent.VK_4) { //Store options, doubleShot
+			if(storeLevel){
+				if(coreTotal > 600){
+					if(doubleShot == false) {
+						alpha.upgradeSet();
+						coreTotal -= 600;
+						doubleShot = true;
+					}
+				}
+			}
+		}
+		if (e.getKeyCode() == KeyEvent.VK_5) { //Store options, tripleShot 
+			if(storeLevel){
+				if(coreTotal > 1000){
+					if(tripleShot == false) {
+						alpha.upgradeSet();
+						coreTotal -= 1000;
+						doubleShot = false;
+						tripleShot = true;
+					}
+				}
+			}
+		}
 	}
 
 	@Override
@@ -513,6 +601,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		}
 		if (e.getKeyCode() == KeyEvent.VK_K || e.getKeyCode() == KeyEvent.VK_UP) {
 			keyK = false;
+			shootReset = true;
 		}
 	}
 
@@ -538,27 +627,67 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		}
 		
 		if (keyK) {
-			shooting = true;
 			if (!bullets.isEmpty()) {
-				if (bullets.get(bullets.size() - 1).canShoot(
-						bullets.get(bullets.size() - 1), 100) > 0) {
+				if(doubleShot){
+					if (bullets.get(bullets.size() - 1).canShoot(
+							bullets.get(bullets.size() - 1), 100, autoFire, shootReset)) {
+						bullets.add(new Bullet(alpha.getX()-5, alpha.getY(),
+							bulletSpeed));
+						bullets.add(new Bullet(alpha.getX()+5, alpha.getY(),
+								bulletSpeed));
+					}
+				} else if(tripleShot){
+					if (bullets.get(bullets.size() - 1).canShoot(
+							bullets.get(bullets.size() - 1), 100, autoFire, shootReset)) {
+						bullets.add(new Bullet(alpha.getX()-10, alpha.getY(),
+							bulletSpeed));
+						bullets.add(new Bullet(alpha.getX(), alpha.getY(),
+								bulletSpeed));
+						bullets.add(new Bullet(alpha.getX()+10, alpha.getY(),
+								bulletSpeed));
+					}
+				} else if (bullets.get(bullets.size() - 1).canShoot( //default shot
+						bullets.get(bullets.size() - 1), 100, autoFire, shootReset)) {
 					bullets.add(new Bullet(alpha.getX(), alpha.getY(),
 						bulletSpeed));
-				} else if (bullets.get(bullets.size() - 1).canShoot(
-					bullets.get(bullets.size() - 1), 100) > 0) {
-						bullets.add(new Bullet(alpha.getX(), alpha.getY(), bulletSpeed));
-				} 
+				}
+			} else if(doubleShot){
+				bullets.add(new Bullet(alpha.getX()-5, alpha.getY(),
+					bulletSpeed));
+				bullets.add(new Bullet(alpha.getX()+5, alpha.getY(),
+					bulletSpeed));
+			} else if(tripleShot){
+				bullets.add(new Bullet(alpha.getX()-10, alpha.getY(),
+					bulletSpeed));
+				bullets.add(new Bullet(alpha.getX(), alpha.getY(),
+					bulletSpeed));
+				bullets.add(new Bullet(alpha.getX()+10, alpha.getY(),
+					bulletSpeed));
 			} else {
-				bullets.add(new Bullet(alpha.getX(), alpha.getY(), bulletSpeed));
+				bullets.add(new Bullet(alpha.getX(), alpha.getY(),
+						bulletSpeed));
 			}
-		} else { //not key k
-			shooting = false;
-		} //endif
+		shootReset = false;
+		}
 		
-		if (alpha.getShield() < 1) {
-			
-			if(destroyed){
-				System.out.println("Destroyed");
+		
+		for(int i=0; i<badBullets.size(); i++){
+			int[] posAr = badBullets.get(i).getLoc();
+			if(posAr[1] >= alpha.getY() && posAr[1] <= alpha.getY()+alpha.getHeight()){
+				if(posAr[0] >= alpha.getX() && posAr[0] <= alpha.getX()+alpha.getWidth()){
+					alpha.damage();
+					badBullets.remove(i);
+				}
+			}
+		}
+		
+		for(int i=0; i<cores.size(); i++){
+			int[] posAr = cores.get(i).getLoc();
+			if(posAr[1] >= alpha.getY() && posAr[1] <= alpha.getY()+alpha.getHeight()){
+				if(posAr[0] >= alpha.getX() && posAr[0] <= alpha.getX()+alpha.getWidth()){
+					coreTotal += (cores.get(i).getValue()*20);
+					cores.remove(i);
+				}
 			}
 		}
 	
@@ -568,7 +697,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		for (int i = 0; i < bullets.size(); i++) {
 			bullets.get(i).move(bulletSpeed);
 			int[] array = bullets.get(i).getLoc();
-			if (array[0] > 700 || array[0] < 0) {
+			if (array[1] > 700 || array[1] < 0) {
 				bullets.remove(i);
 			}
 		}// end for
@@ -593,6 +722,10 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		
 			if (mooks.get(i).getHealth() <= 0) {
 				score = score+((mooks.get(i).getType())*100);
+				double rand = Math.random();
+				if(rand > .5){
+					cores.add(new Core(mooks.get(i).getX(), mooks.get(i).getY(), level));
+				}
 				mooks.remove(i);
 			}
 		} //end mook update
@@ -642,6 +775,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		if(mooks.isEmpty() && miniBoss.isEmpty() && boss.isEmpty()){
 			if(!storeLevel){
 				level++;
+				totalEnemies = 0;
 			}
 			if (level == 1){
 				int x = 2;
@@ -661,15 +795,49 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 				} else if((level/3)%3 ==2){
 					g.drawString("You again?", leftMax, 50);
 				}
-				g.drawString("1) Restore shield (100 Cr)", leftMax, 70);
-				g.drawString("2) Add max shield (500 Cr)", leftMax, 90);
-				g.drawString("3) Auto fire (500 Cr)", leftMax, 110);
-				g.drawString("4) Double shot (600 Cr)", leftMax, 130);
-				g.drawString("5) Triple shot (1500 Cr)", leftMax, 150);
-				g.drawString("6) Plasma cutter (10,000 Cr)", leftMax, 170);
+				if(alpha.getShield() == alpha.getShieldMax()){
+					g.setColor(Color.gray);
+					g.drawString("1) Restore shield (100 Cr)", leftMax, 70);
+					g.setColor(Color.black);
+				} else {
+					g.drawString("1) Restore shield (100 Cr)", leftMax, 70);
+				}
+				g.drawString("2) Add max shield (300 Cr)", leftMax, 90);
+				if(autoFire){
+					g.setColor(Color.gray);
+					g.drawString("3) Auto fire (500 Cr)", leftMax, 110);
+					g.setColor(Color.black);
+				} else {
+					g.drawString("3) Auto fire (500 Cr)", leftMax, 110);
+				}
+				
+				/* Do not allow purchase of lower weapon upgrade than equipped
+				 * Position: doubleShot
+				 * Higher: tripleShot
+				 * */
+				if(doubleShot == true || tripleShot == true){
+					g.setColor(Color.gray);
+					g.drawString("4) Double shot (600 Cr)", leftMax, 130);
+					g.setColor(Color.black);
+				} else {
+					g.drawString("4) Double shot (600 Cr)", leftMax, 130);
+				}
+				
+				/* Do not allow purchase of lower weapon upgrade than equipped
+				 * Position: tripleShot
+				 * Higher: TBD
+				 * */
+				if(tripleShot == true){
+					g.setColor(Color.gray);
+					g.drawString("5) Triple shot (1000 Cr)", leftMax, 150);
+					g.setColor(Color.black);
+				} else {
+					g.drawString("5) Triple shot (1000 Cr)", leftMax, 150);
+				}
+				/*g.drawString("6) Plasma cutter (10,000 Cr)", leftMax, 170);
 				g.drawString("7) Nova bomb (30,000 Cr)", leftMax, 190);
 				g.drawString("8) Disruptors (50,000 Cr)", leftMax, 210);
-				g.drawString("9) Remote (99,999 Cr)", leftMax, 230);
+				g.drawString("9) Remote (99,999 Cr)", leftMax, 230);*/
 				g.drawString("Press (x) to continue", leftMax, 270);
 			} else if (level % 2 == 0){
 				int x = 5;
@@ -689,6 +857,14 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 			if(level%11 == 0){
 				boss.add(new Boss(PWIDTH/2, 50, 1, 2));
 			}
+			if(!storeLevel){ //have to check twice due to processing
+				totalEnemies += mooks.size();
+				totalEnemies += miniBoss.size();
+				totalEnemies += boss.size();
+				double lev = (double)level;
+				double tE = (double)totalEnemies;
+				enemyFireDensity = lev/tE/5; //TODO calc fire dens
+			}
 		}
 	}
 	
@@ -707,8 +883,9 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 			startTime = secondTime;
 		}
 		if(seconds%1==0 && startTime == secondTime){
-//			System.out.println(seconds + " seconds.");
-			System.out.println(secondTime);
+			isSecond = true;
+		} else {
+			isSecond = false;
 		}
 	}
 
