@@ -19,9 +19,9 @@ public class MiniBoss {
 	Random g = new Random();
 	private int movedX, movedY;
 	private int health;
-	private int numSteps = 60;
 	private int direction = 0;
 	private int delta;
+	private int leftMax, rightMax;
 
 	public int getX() {
 		return posx;
@@ -29,10 +29,6 @@ public class MiniBoss {
 
 	public int getY() {
 		return posy;
-	}
-	
-	public int getMaxSteps(){
-		return numSteps;
 	}
 	
 	public int getDirection(){
@@ -60,38 +56,40 @@ public class MiniBoss {
 	
 	}
 
-	public MiniBoss(int initPosx, int initPosy, int speed, int life) {
+	public MiniBoss(int initPosx, int initPosy, int speed, int life, int lMax, int rMax) {
 		posx = initPosx;
 		posy = initPosy;
 		delta = speed;
 		direction = 1;
 		health = life;
+		leftMax = lMax;
+		rightMax = rMax;
 	} // end of badGuy()
 
 	public void move() {
-		if ((movedX+delta) > numSteps || movedX < 0) {
-			if(direction > 0){
-				posy = posy+10;
-				posx -= delta;
-				movedX -= delta;
-			} else {
+		if(direction > 0){
+			if(posx+delta > rightMax){
+				posx = rightMax;
 				posy = posy-10;
+				direction = 0-direction;
+			} else {
 				posx += delta;
-				movedX += delta;
 			}
-			direction = 0-direction;
-		} else if(direction > 0){
-			movedX += delta;
-			posx += delta;
-		} else if(direction < 0){
-			movedX -= delta;
-			posx -= delta;
-		} else {
-			System.out.println("unmoving");
+		} else if(direction < 0) {
+			if(posx-delta < leftMax){
+				posx = leftMax;
+				posy = posy+10;
+				direction = 0-direction;
+			} else {
+				posx -= delta;
+			}
 		}
 	} // end of move()
 
 	public void draw(Graphics g) {
+		if(health == 1){
+			miniBoss1 = damage;
+		}
 		g.setColor(Color.black);
 		g.setFont(new Font("Sans Serif", 1, 12));
 		g.drawString(miniBoss0, posx+1, posy-10);
@@ -101,22 +99,20 @@ public class MiniBoss {
 
 	public void damage() {
 		health--;
-//		System.out.println(health);
-		miniBoss2 = damage;
-	}
+	} //end of damage()
 
 	public int getHealth() {
 		return health;
-	}
+	} //end of getHealth()
 	
 	public boolean isDestroyed(){
 		return destroyed;
-	}
+	} //end of isDestroyed()
 
 	public int[] getSteps() {
 		int[] array = new int[2];
 		array[0] = movedX;
 		array[1] = movedY;
 		return array;
-	}
+	} //end of getSteps()
 }

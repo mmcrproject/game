@@ -5,21 +5,25 @@ import java.awt.Graphics;
 
 public class BadBullets {
 
-	private int posx, posy, direction, delta;
+	private int posx, posy, direction, delta, leftMax, rightMax;
 	private String bullet1 = "|";
 	private String bullet2 = "!";
-	private String bullet9 = "?";
+	private String bullet9 = ";";
 	private String bullet;
 	
-	public BadBullets(int x, int y, int direct, int speed, int type) {
+	public BadBullets(int x, int y, int direct, int speed, int type, int leftMx, int rightMx) {
 		posx = x;
 		posy = y;
+		leftMax = leftMx;
+		rightMax = rightMx;
 		direction = direct;
 		delta = speed;
 		switch(type) {
 			case 1: bullet = bullet1;
 				break;
 			case 2: bullet = bullet2;
+				break;
+			case 9: bullet = bullet9;
 				break;
 			default: bullet = bullet9;
 				break;
@@ -41,7 +45,16 @@ public class BadBullets {
 
 	public void move() {
 		if (direction > 0 || direction < 0) {
-			posx += delta;
+			posx += (direction*delta);
+			if(posx <= leftMax || posx >= rightMax){
+				direction = 0-direction;
+				if(posx <= leftMax){
+					posx = leftMax;
+				}
+				if(posx >= rightMax){
+					posx = rightMax;
+				}
+			}
 		}
 		posy += delta;
 	}

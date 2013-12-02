@@ -16,7 +16,6 @@ public class Enemy {
 	private int mookType;
 	
 	private boolean destroyed = false;
-	private boolean doChange = false;
 	private int posx;
 	private int posy;
 	Random g = new Random();
@@ -54,21 +53,13 @@ public class Enemy {
 		}
 		return false;
 	}
-	
-	public void change(){
-		if (doChange) {
-			delta = 0-delta;
-			doChange = false;
-		}
-	
-	}
 
-	public Enemy(int initPosx, int initPosy, int mookTypeIn, int speed) {
+	public Enemy(int initPosx, int initPosy, int mookTypeIn, int speed, int gameLevel) {
 		posx = initPosx;
 		posy = initPosy;
 		delta = speed;
 		direction = 1;
-		health = mookTypeIn;
+		health = ((gameLevel/10)+mookTypeIn);
 		mookType = mookTypeIn;
 		
 		switch (mookType) {
@@ -101,8 +92,6 @@ public class Enemy {
 		} else if(direction < 0){
 			movedX -= delta;
 			posx -= delta;
-		} else {
-			System.out.println("unmoving");
 		}
 	} // end of move()
 
@@ -114,8 +103,9 @@ public class Enemy {
 
 	public void damage() {
 		health--;
-//		System.out.println(health);
-		mook = mookDamage;
+		if(health == 1) {
+			mook = mookDamage;
+		}
 	}
 
 	public int getHealth() {

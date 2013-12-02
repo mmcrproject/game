@@ -22,6 +22,7 @@ public class Boss {
 	private int numSteps = 60;
 	private int direction = 0;
 	private int delta;
+	private int leftMax, rightMax;
 
 	public int getX() {
 		return posx;
@@ -60,38 +61,40 @@ public class Boss {
 	
 	}
 
-	public Boss(int initPosx, int initPosy, int speed, int life) {
+	public Boss(int initPosx, int initPosy, int speed, int life, int lMax, int rMax) {
 		posx = initPosx;
 		posy = initPosy;
 		delta = speed;
 		direction = 1;
 		health = life;
+		leftMax = lMax;
+		rightMax = rMax;
 	} // end of badGuy()
 
 	public void move() {
-		if ((movedX+delta) > numSteps || movedX < 0) {
-			if(direction > 0){
-				posy = posy+10;
-				posx -= delta;
-				movedX -= delta;
-			} else {
+		if(direction > 0){
+			if(posx+delta > rightMax){
+				posx = rightMax;
 				posy = posy-10;
+				direction = 0-direction;
+			} else {
 				posx += delta;
-				movedX += delta;
 			}
-			direction = 0-direction;
-		} else if(direction > 0){
-			movedX += delta;
-			posx += delta;
-		} else if(direction < 0){
-			movedX -= delta;
-			posx -= delta;
-		} else {
-			System.out.println("unmoving");
+		} else if(direction < 0) {
+			if(posx-delta < leftMax){
+				posx = leftMax;
+				posy = posy+10;
+				direction = 0-direction;
+			} else {
+				posx -= delta;
+			}
 		}
 	} // end of move()
 
 	public void draw(Graphics g) {
+		if(health == 1){
+			boss1 = damage;
+		}
 		g.setColor(Color.black);
 		g.setFont(new Font("Sans Serif", 1, 12));
 		g.drawString(boss0, posx+5, posy-10);
@@ -101,7 +104,6 @@ public class Boss {
 
 	public void damage() {
 		health--;
-		boss2 = damage;
 	}
 
 	public int getHealth() {

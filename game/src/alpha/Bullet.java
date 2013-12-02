@@ -5,20 +5,45 @@ import java.awt.Graphics;
 
 public class Bullet {
 
-	private int posx, posy, adjust;
-	private String bullet = "^"; //TODO size is 5x5 adjust shooting
+	private int posx, posy;
+	private String bullet;
+	private String bulletD = "^";
+	private String bulletB = "*";
+	private String bulletL = "|";
+	private String bulletN = "0";
 	private int speed;
 	private int distanceMoved = 0;
-
-	public Bullet(int x, int y, int magnitude) {
+	private int direction;
+	private int leftMax = 50;
+	private int rightMax = 250;
+	
+	public Bullet(int x, int y, int magnitude, int direct) {
 		speed = magnitude;
 		posx = x;
 		posy = y;
+		direction = direct;
+		bullet = bulletD;
+	}
+	
+	public Bullet(int x, int y, int magnitude, int direct, String type) {
+		speed = magnitude;
+		posx = x;
+		posy = y;
+		direction = direct;
+		if(type == "B"){
+			bullet = bulletB;
+		} else if(type == "L"){
+			bullet = bulletL;
+		} else {
+			bullet = bulletN;
+		}
 	}
 
 	synchronized public void add(Bullet b) {
 		this.posx = b.posx;
 		this.posy = b.posy;
+		this.speed = b.speed;
+		this.direction = b.direction;
 	}
 	
 	synchronized public void draw(Graphics g) {
@@ -29,9 +54,19 @@ public class Bullet {
 
 	} // end of draw()
 
-	public void move(int direction) {
+	public void move() {
 		posy -= speed;
 		distanceMoved += speed;
+		if(direction > 0 || direction < 0){
+			posx += (speed*direction);
+			if(posx < leftMax){
+				posx = leftMax;
+				direction = 0 - direction;
+			}else if(posx > rightMax){
+				posx = rightMax;
+				direction = 0 - direction;
+			}
+		}
 	}
 	
 	

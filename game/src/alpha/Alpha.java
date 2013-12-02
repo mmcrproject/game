@@ -131,4 +131,8 @@ public class Alpha {
 		shield = shieldReset;
 		shieldMax = shieldMaxReset;
 	}
+	
+	public boolean isDestroyed(){
+		return isDestroyed;
+	}
 } // end of Alpha class

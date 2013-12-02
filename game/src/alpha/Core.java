@@ -6,7 +6,7 @@ import java.awt.Graphics;
 public class Core {
 	
 	//Cores always drop in the same manner, so direction and speed can be set w/o input
-	private int posx, posy, direction;
+	private int posx, posy;
 	private int delta = 1;
 	private String core = "¤";
 	private int worth;

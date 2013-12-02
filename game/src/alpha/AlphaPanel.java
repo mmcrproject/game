@@ -47,7 +47,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	private long gameStartTime;
 	boolean pauseOnce = true;
 
-	private long framesSkipped = 0L;
+	//private long framesSkipped = 0L; //does this need added back?
 	private Thread animator; // the thread that performs the animation
 	private boolean running = false; // used to stop the animation thread
 	private boolean isPaused = true;
@@ -71,7 +71,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	private long startTime;
 	private long secondTime;
 	private int seconds;
-	private int delta = 4; //magnitude of ship speed, begins at one unit
+	private int delta = 4; //magnitude of ship speed
 	private int deltaVector; //magnitude delta and +/- sign
 	
 	private Alpha alpha; //character model
@@ -87,12 +87,28 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	//Variables regarding shooting
 	private Boolean shooting = false;
 	private final int bulletSpeed = 5;
-	private boolean destroyed = false;
 	
+	private boolean bumpLevel = false;
 	private boolean storeLevel = false;
+	private boolean fortune = false;
+	private String fortuneString = "";
+	
 	private boolean doubleShot = false;
+	private boolean bounceShot = false;
+	private boolean laserShot = false;
+	private boolean novaShot = false;
 	private boolean tripleShot = false;
+	private boolean bossDisrupt = false;
 	private boolean isSecond = false;
+	
+	
+	private int autoShotCost = 1500; //TODO fine tune store
+	private int doubleShotCost = 1000;
+	private int tripleShotCost = 5000;
+	private int laserShotCost = 15000;
+	private int bounceShotCost = 7000;
+	private int novaShotCost = 3000;
+	private int disruptShotCost = 50000;
 	
 	private double enemyFireDensity = 0;
 	private int totalEnemies = 0;
@@ -223,13 +239,13 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 				gameUpdate(); // update state but don't render
 				skips++;
 			}
-			framesSkipped += skips;
+			//framesSkipped += skips;
 		}
 
 		System.exit(0); // so window disappears
 	} // end of run()
 
-	private void restartGame() { //TODO fix restart, clear enemies
+	private void restartGame() {
 		level = 0;
 		alpha.resetShieldMax(3);
 		alpha.upgradeRemove();
@@ -238,16 +254,21 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		mooks.removeAll(mooks);
 		miniBoss.removeAll(miniBoss);
 		boss.removeAll(boss);
-		delta = 1;
+		cores.removeAll(cores);
 		moving = false;
 		score = 0;
 		coreTotal = 0;
-		destroyed = false;
 		gameOver = false;
 		pauseOnce = true;
 		doubleShot = false;
 		tripleShot = false;
+		laserShot = false;
+		autoFire = false;
+		bounceShot = false;
+		novaShot = false;
 		shootReset = true;
+		fortune = false;
+		bossDisrupt = false;
 		checkStartnew();
 	}
 
@@ -273,10 +294,49 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		if(isSecond){
 			for(int i = 0; i < mooks.size(); i++){
 				double randomBullet = Math.random();
-				randomBullet = randomBullet % mooks.size();
-				randomBullet = randomBullet / mooks.size();
 				if(randomBullet <= enemyFireDensity) {
-					badBullets.add(new BadBullets(mooks.get(i).getX(), mooks.get(i).getY(), 0, 1, 1));	
+					int direct = 0;
+					if(bumpLevel){
+						randomBullet = Math.random();
+						if (randomBullet > .5) {
+							direct = 1;
+						} else {
+							direct = -1;
+						}
+					}
+					badBullets.add(new BadBullets(mooks.get(i).getX(), mooks.get(i).getY(), direct, 1, 1, leftMax, rightMax));	
+				}
+			}
+			for(int i = 0; i < miniBoss.size(); i++){
+				double randomBullet = Math.random();
+				randomBullet = randomBullet % miniBoss.size();
+				randomBullet = randomBullet / (miniBoss.size()*5);
+				if(randomBullet <= enemyFireDensity) {
+					randomBullet = Math.random();
+					int direct;
+					if (randomBullet > .8) {
+						direct = 1;
+					} else if(randomBullet < .2) {
+						direct = -1;
+					} else {
+						direct = 0;
+					}
+					badBullets.add(new BadBullets(miniBoss.get(i).getX(), miniBoss.get(i).getY(), direct, 1, 2, leftMax, rightMax));	
+				}
+			}
+			for(int i = 0; i < boss.size(); i++){
+				double randomBullet = Math.random();
+				randomBullet = randomBullet % boss.size();
+				randomBullet = randomBullet / (boss.size()*5);
+				if(randomBullet <= enemyFireDensity) {
+					randomBullet = Math.random();
+					int direct;
+					if (randomBullet > .5) {
+						direct = 1;
+					} else {
+						direct = -1;
+					}
+					badBullets.add(new BadBullets(boss.get(i).getX(), boss.get(i).getY(), direct, 1, 2, leftMax, rightMax));	
 				}
 			}
 		}
@@ -293,7 +353,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		if (dbImage == null) {
 			dbImage = createImage(PWIDTH, PHEIGHT);
 			if (dbImage == null) {
-				//TODO handle
+				System.out.println("image error");
 				return;
 			} else
 				dbg = dbImage.getGraphics();
@@ -317,15 +377,15 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		dbg.setFont(new Font("Sans Serif", 1, 12));
 		dbg.setColor(Color.black);
 		dbg.drawString("Score: " + score, 10, 12);
-		dbg.drawString("Level: " + level, PWIDTH/2-20, 12);
-		dbg.drawString("Cores: " + coreTotal, PWIDTH-80, 12);
+		dbg.drawString("Cores: " + coreTotal, PWIDTH/2-10, 12);
+		dbg.drawString("Level: " + level, PWIDTH-leftMax, 12);
 		dbg.drawString("(P)ause or (Esc)ape", PWIDTH-90, PHEIGHT-7);
 
 		if (isPaused) {
 			pausedMessage(dbg);
 		}
 
-		if (gameOver) {
+		if (gameOver || alpha.isDestroyed()) {
 			gameOverMessage(dbg);
 		}
 	} // end of gameRender()
@@ -351,7 +411,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 				g.drawImage(dbImage, 0, 0, null);
 			g.dispose();
 		} catch (Exception e) {
-			//TODO handle
+			System.out.println("image error");
 		}
 	} // end of paintScreen()
 
@@ -430,8 +490,8 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 	{
 		String msg1 = "Game Over.";
 		String msg2 = "Score: " + score;
-		String msg3 = "Cores: " + cores;
-		int total = Integer.valueOf(score)+Integer.valueOf(coreTotal);
+		String msg3 = "Cores: " + coreTotal;
+		int total = Integer.valueOf(score)+(Integer.valueOf(coreTotal)/10);
 		String msg4 = "Total: " + total;
 		String msg5 = "Rank: ";
 		
@@ -450,24 +510,30 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		} else if(score >= 600 && score < 1600) {
 			g.setColor(Color.blue);
 			msg5 = "Space Cadet";
-		} else if(score >= 1600 && score < 5000) {
+		} else if(score >= 1600 && score < 10000) {
 			g.setColor(Color.blue);
 			msg5 = "Ensign";
-		} else if(score >= 6000 && score < 7000) {
+		} else if(score >= 10000 && score < 50000) {
 			g.setColor(Color.green);
 			msg5 = "Lieutenant";
-		} else if(score >= 7000 && score < 8000) {
+		} else if(score >= 50000 && score < 100000) {
 			g.setColor(Color.green);
 			msg5 = "Commander";
-		} else if(score >= 9000 && score < 10000) {
+		} else if(score >= 100000 && score < 200000) {
 			g.setColor(Color.black);
 			msg5 = "Captain";
-		} else if(score >= 10000 && score < 11000) {
+		} else if(score >= 250000 && score < 500000) {
 			g.setColor(Color.black);
 			msg5 = "Admiral";
-		} else if(score >= 10000 && score < 11000) {
-			g.setColor(Color.yellow);
-			msg5 = "Default";
+		} else if(score >= 600000 && score < 700000) {
+			g.setColor(Color.green);
+			msg5 = "Lord Admiral";
+		} else if(score >= 700000 && score < 800000) {
+			g.setColor(Color.blue);
+			msg5 = "Emperor";
+		} else if(score >= 800000) {
+			g.setColor(Color.red);
+			msg5 = "KING OF SPACE";
 		}
 		g.drawString(msg5, PWIDTH / 2 - 70+50, PHEIGHT / 2+60);
 		
@@ -500,6 +566,10 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		if (e.getKeyCode() == KeyEvent.VK_K || e.getKeyCode() == KeyEvent.VK_UP) { //Request to fire
 			keyK = true;
 		}
+		/*if (e.getKeyCode() == KeyEvent.VK_B) { //deBug key
+			level++;
+			coreTotal += 5000;
+		}*/
 		if (e.getKeyCode() == KeyEvent.VK_P) { //Pause game
 			pauseGame();
 		}
@@ -509,20 +579,20 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 				pauseOnce = false;
 			}
 		}
-		if (e.getKeyCode() == KeyEvent.VK_B) { //TODO deBug key
-			coreTotal += 2000; //MONEY CHEAT
-		}
 		
 		if (e.getKeyCode() == KeyEvent.VK_X) { //eXit store
 			if(level%3 == 0){
 				storeLevel = false;
+				fortune = false;
 			}
 		}
-		if (e.getKeyCode() == KeyEvent.VK_SPACE) { //End game, debug key remove
-			gameOver = true;
+		if (e.getKeyCode() == KeyEvent.VK_SPACE) { //Option to end game at level 99
+			if(level == 99){
+				gameOver = true;	
+			}
 		}
-		if (e.getKeyCode() == KeyEvent.VK_ENTER) { //End game, debug key remove
-			if(isPaused){
+		if (e.getKeyCode() == KeyEvent.VK_ENTER) { //End game
+			if(isPaused || gameOver || alpha.isDestroyed()){
 				restartGame();
 				pauseOnce = false;
 				isPaused = false;
@@ -530,9 +600,9 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		}
 		if (e.getKeyCode() == KeyEvent.VK_1) { //Store options, charge shield
 			if(storeLevel){
-				if(coreTotal > 100){
+				if(coreTotal >= (alpha.getShield()*30)){
 					if(alpha.getShield() < alpha.getShieldMax()) {
-						coreTotal -= 100;
+						coreTotal -= (alpha.getShield()*30);
 						alpha.addShield();
 					}
 				}
@@ -540,8 +610,8 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		}
 		if (e.getKeyCode() == KeyEvent.VK_2) { //Store options, add max shield
 			if(storeLevel){
-				if(coreTotal > 300){
-					coreTotal -= 300;
+				if(coreTotal >= (alpha.getShield()*100)){
+					coreTotal -= (alpha.getShield()*100);
 					alpha.addShieldMax();
 					alpha.addShield();
 				}
@@ -549,10 +619,9 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		}
 		if (e.getKeyCode() == KeyEvent.VK_3) { //Store options, autofire
 			if(storeLevel){
-				if(coreTotal > 500){
-					if(autoFire == false) {
-						System.out.println("autofire "+autoFire);
-						coreTotal -= 500;
+				if(coreTotal >= autoShotCost){
+					if(!autoFire) {
+						coreTotal -= autoShotCost;
 						autoFire = true;
 					}
 				}
@@ -560,10 +629,10 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		}
 		if (e.getKeyCode() == KeyEvent.VK_4) { //Store options, doubleShot
 			if(storeLevel){
-				if(coreTotal > 600){
-					if(doubleShot == false) {
+				if(coreTotal >= doubleShotCost){
+					if(!doubleShot) {
 						alpha.upgradeSet();
-						coreTotal -= 600;
+						coreTotal -= doubleShotCost;
 						doubleShot = true;
 					}
 				}
@@ -571,12 +640,65 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		}
 		if (e.getKeyCode() == KeyEvent.VK_5) { //Store options, tripleShot 
 			if(storeLevel){
-				if(coreTotal > 1000){
-					if(tripleShot == false) {
+				if(coreTotal >= tripleShotCost){
+					if(!tripleShot) {
 						alpha.upgradeSet();
-						coreTotal -= 1000;
+						coreTotal -= tripleShotCost	;
 						doubleShot = false;
 						tripleShot = true;
+					}
+				}
+			}
+		}
+		if (e.getKeyCode() == KeyEvent.VK_6) { //Store options, bounceShot
+			if(storeLevel){
+				if(coreTotal >= bounceShotCost){
+					if(!bounceShot) {
+						coreTotal -= bounceShotCost;
+						bounceShot = true;
+					}
+				}
+			}
+		}
+		if (e.getKeyCode() == KeyEvent.VK_7) { //Store options, laserShot
+			if(storeLevel){
+				if(coreTotal >= laserShotCost){
+					if(!laserShot) {
+						alpha.upgradeSet();
+						coreTotal -= laserShotCost;
+						doubleShot = false;
+						tripleShot = false;
+						laserShot = true;
+					}
+				}
+			}
+		}
+		if (e.getKeyCode() == KeyEvent.VK_8) { //Store options, novaShot
+			if(storeLevel){
+				if(coreTotal >= novaShotCost){
+					if(!novaShot){
+						coreTotal -= novaShotCost;
+						novaShot = true;
+					}
+				}
+			}
+		}
+		if (e.getKeyCode() == KeyEvent.VK_9) { //Store options, doubleShot
+			if(storeLevel){
+				if(coreTotal >= disruptShotCost){
+					if(!bossDisrupt){
+						coreTotal -= disruptShotCost;
+						bossDisrupt = true;
+					}
+				}
+			}
+		}
+		if (e.getKeyCode() == KeyEvent.VK_0) { //Store options, fortune
+			if(storeLevel){
+				if(coreTotal >= level){
+					if(!fortune){
+						coreTotal -= level;
+						fortune = true;
 					}
 				}
 			}
@@ -627,77 +749,88 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 		}
 		
 		if (keyK) {
-			if (!bullets.isEmpty()) {
-				if(doubleShot){
-					if (bullets.get(bullets.size() - 1).canShoot(
-							bullets.get(bullets.size() - 1), 100, autoFire, shootReset)) {
-						bullets.add(new Bullet(alpha.getX()-5, alpha.getY(),
-							bulletSpeed));
-						bullets.add(new Bullet(alpha.getX()+5, alpha.getY(),
-								bulletSpeed));
+			if (!bullets.isEmpty()) { //If no bullets on screen
+				if (bullets.get(bullets.size() - 1).canShoot(bullets.get(bullets.size() - 1), 100, autoFire, shootReset)) {
+					//If enough time has elapsed to fire again
+					if(bounceShot){ //Bounce shot can combine with other shots
+							bullets.add(new Bullet(alpha.getX()-15, alpha.getY()+10, bulletSpeed, -1, "B"));
+							bullets.add(new Bullet(alpha.getX()+15, alpha.getY()+10, bulletSpeed, 1, "B"));
+						}
+					if(doubleShot){ //Two bullet spread, cannot stack
+						bullets.add(new Bullet(alpha.getX()-5, alpha.getY(), bulletSpeed, 0));
+						bullets.add(new Bullet(alpha.getX()+5, alpha.getY(), bulletSpeed, 0));
+					} else if(tripleShot){ //Three bullet spread, cannot stack
+						bullets.add(new Bullet(alpha.getX()-10, alpha.getY(), bulletSpeed, 0));
+						bullets.add(new Bullet(alpha.getX(), alpha.getY(), bulletSpeed, 0));
+						bullets.add(new Bullet(alpha.getX()+10, alpha.getY(), bulletSpeed, 0));
+					} else if(laserShot){ //fires a line of bullets, cannot stack
+						for(int i=0; (alpha.getY()-(i*80))>35; i++){
+							bullets.add(new Bullet(alpha.getX()-10, alpha.getY()-(i*80), bulletSpeed, 0, "L"));
+						}
+					} else { //default shot
+						bullets.add(new Bullet(alpha.getX(), alpha.getY(),bulletSpeed, 0));
 					}
-				} else if(tripleShot){
-					if (bullets.get(bullets.size() - 1).canShoot(
-							bullets.get(bullets.size() - 1), 100, autoFire, shootReset)) {
-						bullets.add(new Bullet(alpha.getX()-10, alpha.getY(),
-							bulletSpeed));
-						bullets.add(new Bullet(alpha.getX(), alpha.getY(),
-								bulletSpeed));
-						bullets.add(new Bullet(alpha.getX()+10, alpha.getY(),
-								bulletSpeed));
-					}
-				} else if (bullets.get(bullets.size() - 1).canShoot( //default shot
-						bullets.get(bullets.size() - 1), 100, autoFire, shootReset)) {
-					bullets.add(new Bullet(alpha.getX(), alpha.getY(),
-						bulletSpeed));
 				}
+			//endif isempty	
+			} else if(novaShot){ //Replacement shot if first on screen
+				bullets.add(new Bullet(alpha.getX()-5, alpha.getY(), bulletSpeed, -3, "B"));
+				bullets.add(new Bullet(alpha.getX()-3, alpha.getY(), bulletSpeed, -2, "B"));
+				bullets.add(new Bullet(alpha.getX()-1, alpha.getY(), bulletSpeed, -1, "B"));
+				bullets.add(new Bullet(alpha.getX()+1, alpha.getY(), bulletSpeed, 1, "B"));
+				bullets.add(new Bullet(alpha.getX()+3, alpha.getY(),
+						bulletSpeed, 2, "B"));
+				bullets.add(new Bullet(alpha.getX()+5, alpha.getY(),
+						bulletSpeed, 3, "B"));
 			} else if(doubleShot){
 				bullets.add(new Bullet(alpha.getX()-5, alpha.getY(),
-					bulletSpeed));
+					bulletSpeed, 0));
 				bullets.add(new Bullet(alpha.getX()+5, alpha.getY(),
-					bulletSpeed));
+					bulletSpeed, 0));
 			} else if(tripleShot){
 				bullets.add(new Bullet(alpha.getX()-10, alpha.getY(),
-					bulletSpeed));
+					bulletSpeed, 0));
 				bullets.add(new Bullet(alpha.getX(), alpha.getY(),
-					bulletSpeed));
+					bulletSpeed, 0));
 				bullets.add(new Bullet(alpha.getX()+10, alpha.getY(),
-					bulletSpeed));
-			} else {
+					bulletSpeed, 0));
+			} else if(laserShot){ //fires a line of bullets, cannot stack
+					for(int i=0; (alpha.getY()-(i*80))>35; i++){
+							bullets.add(new Bullet(alpha.getX()-10, alpha.getY()-(i*80), bulletSpeed, 0, "L"));
+					}					
+			} else { //default shot
 				bullets.add(new Bullet(alpha.getX(), alpha.getY(),
-						bulletSpeed));
+						bulletSpeed, 0));
 			}
-		shootReset = false;
+		shootReset = false; //Do not allow firing again unless screen empty or autoFire
 		}
-		
-		
-		for(int i=0; i<badBullets.size(); i++){
-			int[] posAr = badBullets.get(i).getLoc();
-			if(posAr[1] >= alpha.getY() && posAr[1] <= alpha.getY()+alpha.getHeight()){
-				if(posAr[0] >= alpha.getX() && posAr[0] <= alpha.getX()+alpha.getWidth()){
-					alpha.damage();
-					badBullets.remove(i);
+			
+			for(int i=0; i<badBullets.size(); i++){
+				int[] posAr = badBullets.get(i).getLoc();
+				if(posAr[1]+5 >= alpha.getY() && posAr[1] <= alpha.getY()+alpha.getHeight()+5){
+					if(posAr[0] >= alpha.getX() && posAr[0] <= alpha.getX()+alpha.getWidth()){
+						alpha.damage();
+						badBullets.remove(i);
+					}
 				}
 			}
-		}
-		
-		for(int i=0; i<cores.size(); i++){
-			int[] posAr = cores.get(i).getLoc();
-			if(posAr[1] >= alpha.getY() && posAr[1] <= alpha.getY()+alpha.getHeight()){
-				if(posAr[0] >= alpha.getX() && posAr[0] <= alpha.getX()+alpha.getWidth()){
-					coreTotal += (cores.get(i).getValue()*20);
-					cores.remove(i);
+			
+			for(int i=0; i<cores.size(); i++){
+				int[] posAr = cores.get(i).getLoc();
+				if(posAr[1] >= alpha.getY() && posAr[1] <= alpha.getY()+alpha.getHeight()){
+					if(posAr[0] >= alpha.getX()-12 && posAr[0] <= alpha.getX()+alpha.getWidth()+21){
+						coreTotal += (cores.get(i).getValue()*100);
+						cores.remove(i);
+					}
 				}
 			}
-		}
-	
-	}// end updateMoves
+		
+		}// endif KeyK
 	
 	private void updateBullets() {
 		for (int i = 0; i < bullets.size(); i++) {
-			bullets.get(i).move(bulletSpeed);
+			bullets.get(i).move();
 			int[] array = bullets.get(i).getLoc();
-			if (array[1] > 700 || array[1] < 0) {
+			if (array[1] < 35) {
 				bullets.remove(i);
 			}
 		}// end for
@@ -724,7 +857,7 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 				score = score+((mooks.get(i).getType())*100);
 				double rand = Math.random();
 				if(rand > .5){
-					cores.add(new Core(mooks.get(i).getX(), mooks.get(i).getY(), level));
+					cores.add(new Core(mooks.get(i).getX(), mooks.get(i).getY(), mooks.get(i).getType()));
 				}
 				mooks.remove(i);
 			}
@@ -746,7 +879,8 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 				
 					if (miniBoss.get(i).getHealth() <= 0) {
 						miniBoss.remove(i);
-						score = score+500;
+						score += (500*level);
+						coreTotal += (50*level);
 					}
 				} //end miniBoss update
 
@@ -766,27 +900,42 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 				
 					if (boss.get(i).getHealth() <= 0) {
 						boss.remove(i);
-						score = score+1000;
+						score += (1000*level);
+						coreTotal += (100*level);
 					}
 				} //end boss update
 	}// end baddies
 	
-	private void updateLevel(Graphics g) { //TODO work on level logic
-		if(mooks.isEmpty() && miniBoss.isEmpty() && boss.isEmpty()){
+	private void updateLevel(Graphics g) {
+		if(level == 99){
+			g.drawString("Victory achieved!", 85, 100);
+			g.drawString("Thanks for playing.", 75, 150);
+			g.drawString("Press SPACE to view your score.", 50, 200);
+		} else if(mooks.isEmpty() && miniBoss.isEmpty() && boss.isEmpty() && level != 99){
 			if(!storeLevel){
+				bumpLevel = false;
 				level++;
 				totalEnemies = 0;
 			}
-			if (level == 1){
-				int x = 2;
+			if(level == 98) { //TODO big finale
+				miniBoss.add(new MiniBoss(PWIDTH/2, 50, 1, level+2, leftMax, rightMax));
+				boss.add(new Boss(PWIDTH/4, 50, 1, level*2, leftMax, rightMax));
+				mooks.add(new Enemy(leftMax+30, 70, 3, 2, level));
+				mooks.add(new Enemy(rightMax-30, 70, 3, 2, level));
+				int x = 3;
 				for(int i=0; i<x; i++){
-					miniBoss.add(new MiniBoss(50, 40, 1, 2));
-					boss.add(new Boss(100, 40, 1, 2));
-					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 200, 1, 1));
-					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 250, 2, 1));
-					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 300, 3, 1));
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 100, 3, 1, level));
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 130, 2, 1, level));
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 160, 1, 1, level));
 				}
-			} else if(level % 3 == 0) {
+			} else if (level == 1){
+				int x = 5;
+				for(int i=0; i<x; i++){
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 80, 1, 1, level));
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 110, 1, 1, level));
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 140, 1, 1, level));
+				}
+			} else if(level % 3 == 0 && level != 99) {
 				storeLevel = true;
 				if((level/3)%3 ==0){
 					g.drawString("Welcome to the store.", leftMax, 50);
@@ -797,73 +946,227 @@ public class AlphaPanel extends JPanel implements Runnable, KeyListener {
 				}
 				if(alpha.getShield() == alpha.getShieldMax()){
 					g.setColor(Color.gray);
-					g.drawString("1) Restore shield (100 Cr)", leftMax, 70);
+					g.drawString("1) Restore shield ("+(alpha.getShield()*30)+" Cr)", leftMax, 70);
 					g.setColor(Color.black);
 				} else {
-					g.drawString("1) Restore shield (100 Cr)", leftMax, 70);
+					g.drawString("1) Restore shield ("+(alpha.getShield()*30)+" Cr)", leftMax, 70);
 				}
-				g.drawString("2) Add max shield (300 Cr)", leftMax, 90);
+				g.drawString("2) Add max shield ("+(alpha.getShieldMax()*100)+" Cr)", leftMax, 90);
 				if(autoFire){
 					g.setColor(Color.gray);
-					g.drawString("3) Auto fire (500 Cr)", leftMax, 110);
+					g.drawString("3) Auto fire ("+autoShotCost+" Cr)", leftMax, 110);
 					g.setColor(Color.black);
 				} else {
-					g.drawString("3) Auto fire (500 Cr)", leftMax, 110);
+					g.drawString("3) Auto fire ("+autoShotCost+" Cr)", leftMax, 110);
 				}
 				
 				/* Do not allow purchase of lower weapon upgrade than equipped
 				 * Position: doubleShot
-				 * Higher: tripleShot
+				 * Higher: tripleShot, laserShot
 				 * */
-				if(doubleShot == true || tripleShot == true){
+				if(doubleShot == true || tripleShot == true || laserShot == true){
 					g.setColor(Color.gray);
-					g.drawString("4) Double shot (600 Cr)", leftMax, 130);
+					g.drawString("4) Double shot ("+doubleShotCost+" Cr)", leftMax, 130);
 					g.setColor(Color.black);
 				} else {
-					g.drawString("4) Double shot (600 Cr)", leftMax, 130);
+					g.drawString("4) Double shot ("+doubleShotCost+" Cr)", leftMax, 130);
 				}
 				
 				/* Do not allow purchase of lower weapon upgrade than equipped
 				 * Position: tripleShot
-				 * Higher: TBD
+				 * Higher: laserShot
 				 * */
-				if(tripleShot == true){
+				if(tripleShot == true || laserShot == true){
 					g.setColor(Color.gray);
-					g.drawString("5) Triple shot (1000 Cr)", leftMax, 150);
+					g.drawString("5) Triple shot ("+tripleShotCost+" Cr)", leftMax, 150);
 					g.setColor(Color.black);
 				} else {
-					g.drawString("5) Triple shot (1000 Cr)", leftMax, 150);
+					g.drawString("5) Triple shot ("+tripleShotCost+" Cr)", leftMax, 150);
 				}
-				/*g.drawString("6) Plasma cutter (10,000 Cr)", leftMax, 170);
-				g.drawString("7) Nova bomb (30,000 Cr)", leftMax, 190);
-				g.drawString("8) Disruptors (50,000 Cr)", leftMax, 210);
-				g.drawString("9) Remote (99,999 Cr)", leftMax, 230);*/
+				
+				if(bounceShot == true){
+					g.setColor(Color.gray);
+					g.drawString("6) Bounce shot ("+bounceShotCost+" Cr)", leftMax, 170);
+					g.setColor(Color.black);
+				} else {
+					g.drawString("6) Bounce shot ("+bounceShotCost+" Cr)", leftMax, 170);
+				}
+				
+				
+				/* Do not allow purchase of lower weapon upgrade than equipped
+				 * Position: laserShot
+				 * Higher: TBD
+				 * */
+				if(laserShot == true){
+					g.setColor(Color.gray);
+					g.drawString("7) Laser shot ("+laserShotCost +" Cr)", leftMax, 190);
+					g.setColor(Color.black);
+				} else {
+					g.drawString("7) Laser shot ("+laserShotCost +" Cr)", leftMax, 190);
+				}
+				
+				/* Nova shot replaces current shot on first fire when the screen is empty
+				 * Six bullets fire in rapid spread pattern
+				 * Stackable: (special)
+				 * */
+				if(novaShot == true){
+					g.setColor(Color.gray);
+					g.drawString("8) Nova shot ("+novaShotCost+" Cr)", leftMax, 210);
+					g.setColor(Color.black);
+				} else {
+					g.drawString("8) Nova shot ("+novaShotCost+" Cr)", leftMax, 210);
+				}
+				if(bossDisrupt == true){
+					g.setColor(Color.gray);
+					g.drawString("9) Boss disruptor ("+disruptShotCost+" Cr)", leftMax, 230);
+					g.setColor(Color.black);
+				} else {
+					g.drawString("9) Boss disruptor ("+disruptShotCost+" Cr)", leftMax, 230);
+				}
+				if(fortune == true){
+					g.setColor(Color.gray);
+					g.drawString("0) Fortune ("+level+" Cr)", leftMax, 250);
+					g.setColor(Color.red);
+					switch (level) {
+						case 3: fortuneString = "An investment will pay off.";
+						break;
+						case 6: fortuneString = "Only the center takes damage.";
+						break;
+						case 9: fortuneString = "Wings can collect cores.";
+						break;
+						case 12: fortuneString = "What has 4 wheels & flies?";
+						break;
+						case 15: fortuneString = "A garbage truck! Hyuk-hyuk.";
+						break;
+						case 18: fortuneString = "Novashot without autofire?";
+						break;
+						case 21: fortuneString = "A rock, a river, a tree.";
+						break;
+						case 24: fortuneString = "Drink Hyper Cola!";
+						break;
+						case 27: fortuneString = "Trapped in fortune factory.";
+						break;
+						case 30: fortuneString = "There is a rare smiley face.";
+						break;
+						case 33: fortuneString = "Did you waste those cores?";
+						break;
+						case 36: fortuneString = "Even bosses show pain.";
+						break;
+						case 39: fortuneString = "The answer is coming up!";
+						break;
+						case 42: fortuneString = "What was the question?";
+						break;
+						case 45: fortuneString = "What's a young horse called?";
+						break;
+						case 48: fortuneString = "99 is the level the game ends.";
+						break;
+						case 51: fortuneString = "Disrupted bosses take 1 hit.";
+						break;
+						case 54: fortuneString = "Auto-nova Laserbounce Shot?";
+						break;
+						case 57: fortuneString = "@--->--->-----";
+						break;
+						case 60: fortuneString = "What's brown and sticky?";
+						break;
+						case 63: fortuneString = "A stick!";
+						break;
+						case 66: fortuneString = "Play it backwards.";
+						break;
+						case 69: fortuneString = "Insert joke here.";
+						break;
+						case 72: fortuneString = "See you in 24 levels!";
+						break;
+						case 75: fortuneString = "Highscore counts 1/10 cores.";
+						break;
+						case 78: fortuneString = "Smile, you're being recorded.";
+						break;
+						case 81: fortuneString = "...just kidding.";
+						break;
+						case 84: fortuneString = "I wasn't kidding about that.";
+						break;
+						case 87: fortuneString = "Or was I?";
+						break;
+						case 90: fortuneString = "Just 9 more levels.";
+						break;
+						case 93: fortuneString = "I was kidding, before.";
+						break;
+						case 96: 
+							fortuneString = "Did that investment pay off?";
+							doubleShot = false;
+							tripleShot = false;
+							laserShot = true;
+							bounceShot = true;
+							novaShot = true;
+							autoFire = true;
+							bossDisrupt = true;
+						break;
+					}
+					g.drawString(fortuneString, leftMax, 300);
+				} else {
+					g.drawString("0) Fortune ("+level+" Cr)", leftMax, 250);
+				}
 				g.drawString("Press (x) to continue", leftMax, 270);
-			} else if (level % 2 == 0){
+			} else if (level % 2 == 0 && level%3 != 0){
+				if(level%4 == 0){
+					bumpLevel = true;
+				}
 				int x = 5;
 					for(int i=0; i<x; i++){
-						mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 100, 1, 1));
+						mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 100, 2, 1, level));
 					}
-					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/2)+leftMax-20), 70, 3, 2));
-			}else {
-				int x = 3;
-				for(int i=0; i<x; i++){
-					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 100, 1, 1));
+					mooks.add(new Enemy((((PWIDTH-(leftMax*2))/2)+leftMax-30), 70, 3, 2, level));
+			}else if(level !=99) {
+				double levelRand = Math.random();
+				if(levelRand < .2){
+					int x = 5;
+					for(int i=0; i<x; i++){
+						mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 100, 3, 1, level));
+						mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 130, 2, 1, level));
+					}
+				} else if (levelRand >= .2 && levelRand <= .8){
+					int x = 5;
+					for(int i=0; i<x; i++){
+						mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 100, 2, 1, level));
+						mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 130, 1, 1, level));
+						mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 160, 1, 1, level));
+					}
+				} else if (levelRand >= .8 && levelRand <= .95){
+					int x = 3;
+					for(int i=0; i<x; i++){
+						mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 100, 3, 1, level));
+						mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 130, 2, 1, level));
+						mooks.add(new Enemy((((PWIDTH-(leftMax*2))/x)*i+leftMax)-(10*i), 160, 1, 1, level));
+					}
+				} else { //5% chance of smiley face
+					mooks.add(new Enemy((leftMax+25), 120, 2, 1, level));
+					mooks.add(new Enemy((rightMax-105), 120, 2, 1, level));
+					mooks.add(new Enemy((leftMax +15), 190, 3, 1, level));
+					mooks.add(new Enemy((rightMax -95), 190, 3, 1, level));
+					mooks.add(new Enemy((leftMax +45), 210, 3, 1, level));
+					mooks.add(new Enemy((rightMax -125), 210, 3, 1, level));
 				}
 			}
-			if(level%5 == 0){
-				miniBoss.add(new MiniBoss(PWIDTH/2, 50, 1, 2));
+			if(level%5 == 0 && level%3 != 0){ //levels with miniboss
+				if(bossDisrupt){
+					miniBoss.add(new MiniBoss(PWIDTH/2, 50, 1, 1, leftMax, rightMax));
+				} else {
+					miniBoss.add(new MiniBoss(PWIDTH/2, 50, 1, level+2, leftMax, rightMax));
+				}
 			}
-			if(level%11 == 0){
-				boss.add(new Boss(PWIDTH/2, 50, 1, 2));
+			if(level%11 == 0 && level%3 != 0){ //levels with boss
+				if(bossDisrupt){
+					boss.add(new Boss(PWIDTH/4, 50, 1, 1, leftMax, rightMax));
+				} else {
+					boss.add(new Boss(PWIDTH/4, 50, 1, level*2, leftMax, rightMax));
+				}
 			}
-			if(!storeLevel){ //have to check twice due to processing
+			if(!storeLevel){ //final processing must be done after enemeis placed
 				totalEnemies += mooks.size();
 				totalEnemies += miniBoss.size();
 				totalEnemies += boss.size();
 				double lev = (double)level;
 				double tE = (double)totalEnemies;
-				enemyFireDensity = lev/tE/5; //TODO calc fire dens
+				enemyFireDensity = (((lev)/((lev+tE)*2))*Math.random());
 			}
 		}
 	}
